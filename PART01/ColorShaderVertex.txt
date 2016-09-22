@@ -1,0 +1,36 @@
+
+//전역변수 렌더몽키에서 변수시맨틱을 통해 변수 값을 대입해줍니다.
+float4x4 gWorldMatrix;
+float4x4 gViewMatrix;
+float4x4 gProjectionMatrix;
+
+// DirectX의 버텍스버퍼의 위치정보를 구해옴.
+struct VS_INPUT
+{
+   // float4 HLSL자체에서 지원하는 변수의 데이터형이다.
+   // 4개의 성분 x,y,z,w을 가지는 벡터이며 각 성분은 부동소수점형이다.
+   // GPU는 부동소수점 벡터를 처리하는데 최적화 되어 있으므로 정수는 오히려 성능를 저하시킨다.
+
+   // POSITION 이라는 시맨틱(필요한 정보만 빼오는 것) 덕분에 구해 올 수 있다.
+   // DirectX의 정점데이터에서 위치 정보를 가져와 mPosition에 대입.
+   float4 mPosition : POSITION;
+};
+
+// 래스터라이저에게 전달 해주기 위해 윈치변환 결과를 반환.
+struct VS_OUTPUT
+{
+// 투영공간으로 변환된 mPosition 이다.
+   float4 mPosition : POSITION;
+};
+
+VS_OUTPUT vs_main(VS_INPUT Input)
+{
+   VS_OUTPUT Output;
+
+   Output.mPosition = mul(Input.mPosition,gWorldMatrix);
+   Output.mPosition = mul(Output.mPosition,gViewMatrix);
+   Output.mPosition = mul(Output.mPosition,gProjectionMatrix);
+   
+   return Output;
+}
+
