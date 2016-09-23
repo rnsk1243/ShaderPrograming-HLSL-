@@ -1,0 +1,26 @@
+// 텍스처 이미지는 픽셀마다 변하는 값이 아미므로 전역변수로 선언
+// sampler2D 데이터형은 HLSL에서 지원하는 데이터형 중에 하나로 2D 텍스처에서 텍셀 하나를 구해오는데 사용함.
+sampler2D DiffuseSampler;
+
+// 정점셰이더의 PS_OUTPUT과 비슷하다 
+// 이유는 정점셰이더가 반환한 값을 픽셀셰이더가 받아야하므로.
+struct PS_INPUT
+{
+  // 정점셰이더로부터 보간기를 거처 얻은 UV좌표
+   float2 mTexCoord : TEXCOORD0;
+
+};
+
+// UV좌표 매개변수를 받는다
+// 
+float4 ps_main(PS_INPUT Input) : COLOR
+{
+   // 텍스쳐샘플러와 UV값을 이용해 텍셀 값을 구함
+   float4 albedo = tex2D(DiffuseSampler,Input.mTexCoord);
+   // 텍스쳐를 그대로 보여주는 것이 목적이면 그냥 리턴 시킴
+   // albedo만 넘겨도 상관없지만 albedo.rgba로 하면 albedo의 r,g,b,a값 모두 넘긴다는 것.
+   // 예를 들어 a값을 뺀 r,g,b값을 얻고 싶으면 albedo.rgb 를 넘기면 된다.
+   // 순서를 섞어서 넘길 수 도있다. 예 albedo.bgra // albedo.rrra; 등 (스위즐)
+   return albedo.rgba;
+
+}

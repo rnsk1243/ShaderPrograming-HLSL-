@@ -1,0 +1,32 @@
+float4x4 gWorldMatrix;
+float4x4 gViewMatrix;
+float4x4 gProjectionMatrix;
+
+struct VS_INPUT{
+
+   float4 mPosition : POSITION;
+// 뒤에 0을 붙이면 TEXCOORD수가 여러개를 뜻함
+// 즉 셰이더에서 여러 개의 텍스처를 동시에 사용할 때, 둘 이상의 UV좌표를 사용할 경우 사용
+   float2 mTexCoord : TEXCOORD0;
+};
+
+struct VS_OUTPUT{
+
+   float4 mPosition : POSITION;
+// 픽셀셰이더를 위해서 텍스처매핑에 필요한 UV좌표를 반환함.
+   float2 mTexCoord : TEXCOORD0;
+};
+
+VS_OUTPUT vs_main(VS_INPUT Input){
+
+   VS_OUTPUT Output;
+   
+   Output.mPosition = mul(Input.mPosition, gWorldMatrix);
+   Output.mPosition = mul(Output.mPosition, gViewMatrix);
+   Output.mPosition = mul(Output.mPosition, gProjectionMatrix);
+   // UV좌표는 지금까지 다뤘던 3차원 공간에 존재하는 것이 아니라 삼각형의 표면상에 존재하기 때문에 아무 변환 없이 UV좌표를 전달해줍니다.
+   Output.mTexCoord = Input.mTexCoord;
+   
+   return Output;
+
+}
