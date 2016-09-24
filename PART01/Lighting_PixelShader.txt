@@ -1,13 +1,45 @@
+// 정점셰이더의 VS_OUTPUT을 그대로 받아온다.
 struct PS_INPUT
 {
 // 정점셰이더에서 받은 난반사광을 담을 곳, 똑같이 TEXCOORD1으로 선언해 주었다.
    float3 mDiffuse : TEXCOORD1;
+// 카메라 벡터
+   float3 mViewDir : TEXCOORD2;
+// 반사광 벡터
+   float3 mReflection : TEXCOORD3;
 };
+
+// 정반사광의 타이트(조그마함)하냐 느슨(넓음)하냐는 거듭제곱의 크기에 달려있다.(클수록 타이트함)
+// 따라서 전역변수로 선언하여 각 물체마다 이 값을 다르게 해주자.
+float powNum = 20.0f;
 
 INPUT ps_main(PS_INPUT Input) : COLOR
 {
 // 받은 난반사광은 코사인값이므로 -1 ~ +1의 범위를 갖는데 우리가 필요한 것은 0 ~ +1값이므로
 // saturate()함수를 이용하여 범위를 0 ~ 1로 만든다.
    float3 diffuse = saturate(Input.mDiffuse);
-   return float4(diffuse,1);
+//   return float4(diffuse,1);
+// 보간기를 거치는 동안 값이 흐려질 수 있기 때문에 다시 정규화 시켜준다.
+   float3 viewDir = normalize(Input.mViewDir);
+   float3 reflection = normalize(Input.mReflection);
+   
+   float3 specular = 0;
+// 난반사광이 존재하지 않으면 정반사광도 존재할 수 없으므로
+// 난반사광이 존재(0보다크면)하면 정반사광을 계산한다.
+   if(diffuse.x > 0.0f)
+   {
+// viewDir과 reflection 두 벡터의 내적을 구하고 범위를 0 ~ +1 로 만들어 준다.
+      specular = saturate(dot(reflection, -viewDir));
+// 거듭제곱을 powNum회 해준다. 이작업을 정점셰이더에서 하지 않는 이유는 
+// 보간기를 거치면서 값이 완전히 달라지기 때문이다.
+      specular = pow(specular,powNum);
+   }
+// 공의 어두운부분이 완전히 안보이므로 주변광을 정의해주어 조금이나마 밝혀준다.
+// 주변광 10%   
+   float3 ambient = float3(0.1f, 0.1f, 0.1f);
+   return float4(ambient + diffuse + specular, 1);
+// 정반사광만 리턴하여 정반사광만을 확인
+//   return float4(specular, 1);
+// 정반사광과 난반사광을 모두 리턴
+   return float4(diffuse + specular, 1);
 }
