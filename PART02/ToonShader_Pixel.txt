@@ -1,0 +1,21 @@
+// Workspace에서 정의해준 전역 컬러 변수
+float3 gSurfaceColor;
+
+struct PS_INPUT
+{
+// 정점셰이더에서 구한 난반사광의 양
+   float3 mDiffuse : TEXCOORD1;
+};
+
+float4 ps_main(PS_INPUT Input) : COLOR
+{
+난반사광의 음수 부분은 버림 0 ~ 1 까지
+   float3 diffuse = saturate(Input.mDiffuse);
+0 ~ 1 까지인 범위를 0.2씩 올림 
+0 ~ 1에서 5를 곱하면 0 ~ 5 사이가됨. 여기서 각 정수값에 5를 나누면
+0, 0.2, 0.4, 0.6, 0.8, 1.0 이렇게 됨.
+   diffuse = ceil(diffuse * 5.0f)/5.0f;
+난반사광과 전역 컬러 변수를 섞고 (x, y, z, w) w에 1을 넣어서
+float4로 만들어 리턴 시킴   
+   return float4(diffuse * gSurfaceColor, 1);
+}

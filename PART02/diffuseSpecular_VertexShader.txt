@@ -1,0 +1,68 @@
+// 정점셰이더가 픽셀셰이더보다 반복 호출되는 횟수가 적으므로
+// 정점셰이더에서 내적을 구하도록 합니다.
+// 삼각형을 만드는데 정점셰이더는 각점 3번 이고 픽셀셰이더는 삼각형안에 픽셀 수만큼 호출됨.
+
+struct VS_INPUT
+{
+   float4 mPosition : POSITION;
+// 법선벡터 (시맨틱은 NORMAL이다.)
+   float3 mNormal : NORMAL;
+// 픽셀셰이더에게 UV좌표값을 전달하기 위해 
+   float2 mUV : TEXCOORD0;
+};
+
+struct VS_OUTPUT
+{
+   float4 mPosition : POSITION;
+// 픽셀셰이더가 UV좌표를 얻을 수 있도록
+   float2 mUV : TEXCOORD0;
+
+// 난반사(코사인값)_람베르트모델
+// 시맨틱을 TEXCOORD을 사용한다 용도에 맞는 시맨틱이 없을경우 TEXCOORD를 사용함.
+// TEXCOORD는 0~7까지 모자르지 않다. 지금은 1을 사용하는데 이따가 0을 사용할 것이라서 그렇다.
+   float3 mDiffuse : TEXCOORD1;
+// 카메라 벡터
+   float3 mViewDir : TEXCOORD2;
+// 반사광 벡터
+   float3 mReflection : TEXCOORD3;
+};
+
+float4x4 gWorldMatrix;
+float4x4 gViewMatrix;
+float4x4 gProjectionMatrix;
+// 월드빛 전역변수 선언
+float4 gWorldLightPosition;
+// 월드 카메라 위치 (시맨틱은 ViewPosition)
+float4 gWorldCameraPosition;
+
+VS_OUTPUT vs_main(VS_INPUT Input)
+{
+   VS_OUTPUT Output;
+   
+   Output.mPosition = mul(Input.mPosition, gWorldMatrix);
+   
+// 바로 위에서 Input을 월드좌표로 변환하여 월드광원과 같은 공간이 되었으므로 이제 벡터의 빼기(끝점-시작점)를
+// 이용하여 입사광의 벡터를 구합니다.
+   float3 lightDir = Output.mPosition.xyz - gWorldLightPosition.xyz;
+// 벡터의 크기를 1로 만들어 내적을 구하기 쉽게 만듬 이렇게하면 내적자체가 코사인값이된다.
+   lightDir = normalize(lightDir);
+// 카메라 벡터 구함 정규화도 같이 해줌 (카메라가보는좌표(물체) - 카메라위치좌표)  
+   Output.mViewDir = normalize(Output.mPosition.xyz - gWorldCameraPosition.xyz);
+
+   Output.mPosition = mul(Output.mPosition, gViewMatrix);
+   Output.mPosition = mul(Output.mPosition, gProjectionMatrix);
+// 로컬공간인 Input좌표의 법선벡터를 월드좌표공간으로 변환시킴   
+   float3 worldNormal = mul(Input.mNormal, (float3x3)gWorldMatrix);
+// 월드공간의 법선벡터를 정규화시킴
+   worldNormal = normalize(worldNormal);
+// 마지막으로 내적을 구해서 대입.  
+// lightDir에 -를 붙인 이유는 법선벡터의 꼬리부분에 lightDir의 머리가 만나지 않도록 하기 위함.
+// 내적을 구할때는 서로 다른 두 벡터의 꼬리가 만나야만 한다.
+// 내적의 결과는 실수 하나인데 float3인 mDiffuse에 넣을 수 있는 것은 HLSL에서 x,y,z값 모두 똑같은 실수값으로 채워주기 때문. 
+   Output.mDiffuse = dot(-lightDir,worldNormal);
+// 반사광을 구해주는 함수 reflect(입사광벡터, 반사면의 법선벡터)를 이용해 반사광 벡터를 구해준다.
+   Output.mReflection = reflect(lightDir,worldNormal);
+// UV좌표도 같이 넘기기위해 넣어줌.
+   Output.mUV = Input.mUV;
+   return Output;
+}

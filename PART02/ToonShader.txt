@@ -1,0 +1,33 @@
+struct VS_INPUT
+{
+   float4 mPosition : POSITION;
+   float3 mNormal : NORMAL;
+};
+
+struct VS_OUTPUT
+{
+   float4 mPosition : POSITION;
+   float3 mDiffuse : TEXCOORD1;
+};
+월드 빛 위치
+float4 gWorldLightPosition;
+월드 * 뷰 * 투영 행렬 
+float4x4 gWorldViewProjectionMatrix;
+월드역행렬
+float4x4 gInvWorldMatrix;
+
+VS_OUTPUT vs_main(VS_INPUT Input)
+{
+   VS_OUTPUT Output;
+정점을 투영공간으로 이동   (바꿀행렬, 변환행렬) 뒤바뀌면 안됨.
+   Output.mPosition = mul(Input.mPosition,gWorldViewProjectionMatrix);
+월드 빛 위치를 로컬좌표로 이동   
+float3으로 변수를 선언하면 float4 * float4 라도 x,y,z값만 들어가는 듯.
+   float3 objectLightPosition = mul(gWorldLightPosition,gInvWorldMatrix);
+로컬 좌표에서 빛방향벡터 구함
+   float3 lightDir = normalize(Input.mPosition.xyz - objectLightPosition);
+내적구함   
+   Output.mDiffuse = dot(-lightDir,normalize(Input.mNormal));
+넘김   
+   return Output;
+}
