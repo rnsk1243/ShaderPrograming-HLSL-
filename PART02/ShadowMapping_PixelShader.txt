@@ -1,0 +1,20 @@
+struct PS_INPUT
+{
+// 정점셰이더에서 보내준 값을 받음
+   float4 mClipPosition: TEXCOORD1;
+};
+
+
+// 이 함수에서 해야할 일은 깊이 값을 반환해주는 것 뿐이다. 
+// 그러면 mClipPosition.z를 반환하면 될거 같은데 그건 아니다..
+float4 ps_main(PS_INPUT Input) : COLOR
+{
+// 정점셰이더에서 광원 기준으로 투영으로 옮긴 좌표 mClipPosition 의 z값을 w로 나눈값을 리턴한다.
+// 이유는 위치벡터(x,y,z,1)에 원근투영행렬을 곱하면 w성분이 1이 아니게 된다..
+// 따라서 모든 성분을 w로 나누어서 (x/w, y/w, z/w, w/w) 이렇게 하여 w성분을 1로 만들어준다.
+// 그러므로 z성분을 w로 나누어 주는것이다.
+   float depth = Input.mClipPosition.z / Input.mClipPosition.w;
+// float4생성자를 이용하여 리턴;
+   return float4(depth.xxx, 1);
+
+}

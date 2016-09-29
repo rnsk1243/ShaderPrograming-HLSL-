@@ -1,0 +1,72 @@
+struct PS_INPUT
+{
+   float2 mUV : TEXCOORD0;
+   float3 mLightDir : TEXCOORD1;
+   float3 mViewDir : TEXCOORD2;
+   float3 T : TEXCOORD3;
+   float3 B : TEXCOORD4;
+   float3 N : TEXCOORD5;
+};
+
+sampler2D DiffuseSampler;
+sampler2D SpecularSampler;
+sampler2D NormalSampler;
+
+float3 gLightColor;
+
+float powNum = 20.0f;
+
+float4 ps_main(PS_INPUT Input) : COLOR
+{
+법선맵 텍스처로부터 법선을 읽어 옴
+   float3 tangentNormal = tex2D(NormalSampler,Input.mUV).xyz;
+읽어온 법선의 범위가 0~1인데 법선의 범위는 -1 ~ +1 까지 이므로 2를곱하고 -1을 해줌
+이로서 현재 픽셀에서 사용할 접선공간 법선을 구했다.
+   tangentNormal = normalize(tangentNormal * 2 - 1);
+
+이제 위에서 구한 접선공간 법선을 월드공간으로 변환해야하므로 우선
+정점셰이더에서 월드좌표로 옴겨준 접선,종법선,법선 벡터를 하나의 행렬로 만듬
+이로서 월드공간을 접선공간으로 변환하는 행렬을 구함
+   float3x3 TBN = float3x3(normalize(Input.T),normalize(Input.B),normalize(Input.N));
+하지만 우리는 접선공간에 있는 법선을 월드공간으로 변환하는 행렬이 필요하므로 그 역행렬이 필요하다
+직교행렬의 역행렬은 전치행렬이므로 전치행렬을 구하는 함수 transpose()를 이용하여 역행렬을 구한다.
+드디어 접선공간에있는 법선을 월드공간으로 이동시키는 행렬을 구했다 
+   TBN = transpose(TBN);
+월드변환행렬 * 접선공간법선 = 월드공간법선
+TBN행렬을 처음 만들때 float3x3 생성자를 이용하여 만들었다 이러면 행기준 행렬이 나오므로
+mul(행렬,벡터)순서로 mul함수에 인자값을 전달해야한다.
+반대로 mul(벡터,행렬)순서로 할때도 있는데 이것은 SetMatrix()함수를 이용해 만든 행렬일 경우이다.
+   float3 worldNormal = mul(TBN,tangentNormal);
+디퓨즈맵 읽어옴
+   float4 albedo = tex2D(DiffuseSampler,Input.mUV);
+다시 정규화시킴
+   float3 lightDir = normalize(Input.mLightDir);
+월드좌표로 변환된 각 텍셀 법선과 빛의역방향의 내적을구해서 난반사광의 양을 구함
+   float3 diffuse = saturate(dot(worldNormal,-lightDir));
+빛의색상 * 디퓨즈맵 * 난반사광의양을 계산하여 조명을 계산
+   diffuse = gLightColor * albedo.xyz * diffuse;
+
+정반사광을 구할 차례
+   float3 specular = 0;
+난반사광이 있으면 계산함
+   if(diffuse.x>0)
+   {
+입사광의 반사벡터를 구함(정반사광을 구하기위함)
+      float3 reflection = reflect(lightDir,worldNormal);
+카메라 벡터도 가져옴
+      float3 viewDir = normalize(Input.mViewDir);
+카메라의 반대방향과 입사광의 반사벡터 둘다 꼬리가 만나 이제 내적을구하고 0보다 작은 값은 버려서 정반사광을 구함      
+      specular = saturate(dot(reflection,-viewDir));
+타이트한 정반사광을 만들기위해 거듭제곱함
+      specular = pow(specular,powNum);
+스페큘러맵을 읽어옴      
+      float4 specularIntensity = tex2D(SpecularSampler, Input.mUV);
+스페큘러맵과 빛의색상을 정반사광에 적용
+      specular *= specularIntensity.rgb * gLightColor;
+   }
+ 환경광 
+   float3 ambient = float3(0.1f,0.1f,0.1f) * albedo;
+모든광을 더하여 리턴   
+   return float4(ambient+diffuse+specular,1);
+
+}

@@ -1,0 +1,66 @@
+struct VS_INPUT
+{
+// 그림자맵을 만들 때 필요한 정보는 정점위치 밖에 없다.
+   float4 mPosition: POSITION;
+};
+
+struct VS_OUTPUT
+{
+// 픽셀셰이더에서 각 픽셀의 깊이 값을 반환해야 하므로 여전히 위치정보만 필요함.
+// 바로 밑에서 다른 시맨틱으로 위치 정보를 전달해 주었지만 이렇게 쓴 이유는 래스터라이저가 픽셀들을 찾을 수 있도록 하기 위함.
+   float4 mPosition: POSITION;
+// 하지만 픽셀셰이더 안에서 POSITION 시맨틱 변수를 곧바로 액세스할 수 없다.
+/ 따라서 다른 시맨틱으로 위치 정보를 전달해 주자.
+   float4 mClipPosition: TEXCOORD1;
+};
+
+// 물체공간 -> 월드공간
+// 광원에서 바라본 뷰공간으로 변환 ( 광원 - 뷰공간 )
+
+// 월드변환 행렬
+float4x4 gWorldMatrix;
+
+// 기존에는 카메라에 대해서 뷰공간 -> 투영공간으로 공간변화시켰지만
+// 지금은 그림자맵을 만들 것이므로 광원에대해서 뷰공간 -> 투영공간으로 공간변화시켜야 한다.
+
+// 광원-뷰공간변환 행렬(광원위치와 카메라의 위치라서 알맞는 시맨틱이 완전히 없음 일단 정점셰이더에 만들도록 함)
+// 필요한것 : 광원의 위치, 광원의 방향(0,0,0)으로 둔다.
+float4x4 gLightViewMatrix;
+// 광원-투영공간변환 행렬(알맞는 시맨틱이 없지만 투영행렬이라는 뜻으로 Projection시맨틱으로 지정) 
+float4x4 gLightProjectionMatrix;
+// 광원의 위치
+float4 gWorldLightPosition;
+
+VS_OUTPUT vs_main(VS_INPUT Input)
+{
+   VS_OUTPUT Output;
+   // 조명의 위치로부터 광원-뷰행렬 만들기 (게임엔진에서 할 일이므로 이해할 필요 없다...)
+   float4x4 lightViewMatrix = gLightViewMatrix;
+   float3 dirZ = -normalize(gWorldLightPosition.xyz);
+   float3 up = float3(0,1,0);
+   float3 dirX = cross(up, dirZ);
+   float3 dirY = cross(dirZ, dirX);
+   
+   lightViewMatrix = float4x4(
+      float4(dirX, -dot(gWorldLightPosition.xyz, dirX)),
+      float4(dirY, -dot(gWorldLightPosition.xyz, dirY)),
+      float4(dirZ, -dot(gWorldLightPosition.xyz, dirZ)),
+      float4(0,0,0,1));
+   lightViewMatrix = transpose(lightViewMatrix);
+
+// 이제 필요한 행렬들을 다 구했다.
+// 정점의 위치를 물체공간 -> 월드공간 -> 광원-뷰공간 -> 광원-투영공간으로 변환 한다.
+
+// 월드공간으로
+   Output.mPosition = mul(Input.mPosition,gWorldMatrix);
+// 광원-뷰공간으로 (이때 새로 구해준 lightViewMatrix 행렬을 사용한다.)
+   Output.mPosition = mul(Output.mPosition, lightViewMatrix);
+// 광원-투영공간으로 이제 Output.mPosition 위치는 래스터라이저가 사용한다.
+   Output.mPosition = mul(Output.mPosition,gLightProjectionMatrix);
+// 픽셀셰이더에서 깊이 값을 반환하기 위해 사용할 mPosition값을 mClipPosition에 넣어준다. (픽셀셰이더가 잘 사용해 줄 거다.)
+   Output.mClipPosition = Output.mPosition;
+
+//결과 리턴
+return Output;
+
+}

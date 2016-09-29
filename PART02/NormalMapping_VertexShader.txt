@@ -1,0 +1,85 @@
+// 정점셰이더가 픽셀셰이더보다 반복 호출되는 횟수가 적으므로
+// 정점셰이더에서 내적을 구하도록 합니다.
+// 삼각형을 만드는데 정점셰이더는 각점 3번 이고 픽셀셰이더는 삼각형안에 픽셀 수만큼 호출됨.
+
+struct VS_INPUT
+{
+정점위치
+   float4 mPosition : POSITION;
+정점의 법선벡터(물체공간)
+   float3 mNormal : NORMAL;
+텍스쳐의 xy좌표
+   float2 mUV : TEXCOORD0;
+정점의 종법선(접선과 법석의 수직인 벡터)(물체공간)
+   float3 mBinormal : BINORMAL;
+정점의 접선(물체공간)
+   float3 mTangent : TANGENT;
+};
+
+법선매핑을 사용할때 정점에서 가져오는 법선은 조명에 사용하지 않는다.
+따라서 정점의 법선을사용하여 diffuse(난반사광)을 구할 필요가 없다. 
+대신 픽셀마다 법선의 정보가 있는 법선텍스쳐에서 조명을 계산하도록 
+입사각의 방향벡터를 전달 하기 위해 mLightDir을 반환한다.
+
+픽셀마다 계산해야하므로 정점셰이더에서는 법선매핑하는것이 불가능하다.
+
+mReflection변수는 입사광벡터를 반사시킨것임
+정반사광은 빛의 방향과 법선이 필요(reflect()함수사용)하므로 이것도 픽셀셰이더에서 계산한다.
+
+반사시킨값을 정반사광으로 사용하려면 보는방향과 내적을 구하고 20배정도 거듭제곱한다.
+
+struct VS_OUTPUT
+{
+   float4 mPosition : POSITION;
+   float2 mUV : TEXCOORD0;
+   float3 mLightDir : TEXCOORD1;
+   float3 mViewDir : TEXCOORD2;
+// 접선, 종법선, 법선이 필요한 이유는 접선공간을 월드공간으로 변환하기 위해서임.
+// 조명계산할때 모든 변수를 월드공간으로 변환하듯이(입사광벡터,카메라벡터,법선벡터 필요)
+참고로 반사광벡터는 빕사광벡터과 법선벡터로 도출 시킬 수 있다.
+// 입사광벡터와 카메라벡터는 정점셰이더에서 월드공간으로 변환 할 수있다.
+// 그러나 법선은 텍스쳐에서 텍셀단위로 읽어오므로 표면공간 즉, 접선공간에 존재하므로 이것을 월드공간으로 변환해야 조명을 구할 수 있다.
+어쨋든 T,B,N은 정점의 접선,종법선,법선을 월드좌표로 변환시켜 리턴시키기위해 있다.
+   float3 T : TEXCOORD3;
+   float3 B : TEXCOORD4;
+   float3 N : TEXCOORD5;
+};
+월드행렬
+float4x4 gWorldMatrix
+float4x4 gWorldViewProjectionMatrix;
+월드빛좌표
+float4 gWorldLightPosition;
+월드카메라좌표
+float4 gWorldCameraPosition;
+
+VS_OUTPUT vs_main(VS_INPUT Input)
+{
+   VS_OUTPUT Output;
+   정점의 위치를 모두 투영공간으로 변환한다.
+   Output.mPosition = mul(Input.mPosition, gWorldViewProjectionMatrix);
+   UV좌표는 그대로 리턴해준다.
+   Output.mUV = Input.mUV;
+    
+빛방향벡터 반환(입사광벡터 구하기)
+입사광벡터를 구하려면 우선 월드좌표의 정점이 필요함
+   float4 worldPosition = mul(Input.mPosition, gWorldMatrix);
+광원좌표도 월드니까 모두 월드에 맞추고 벡터의 뺄셈으로 입사광벡터를 구해준다.
+   float3 lightDir = worldPosition.xyz - gWorldLightPosition.xyz;
+   Output.mLightDir = normalize(lightDir);
+카메라벡터도 입사광벡터를 구할때와 마찬가지로 구해준다.   
+   float3 viewDir = normalize(worldPosition.xyz - gWorldCameraPosition);
+   Output.mViewDir = viewDir;
+마지막으로 법선, 접선, 종법선벡터를 픽셀셰이더에 전해 주기 위한 계산을 한다.
+우선 Input에서 가져온 mNormal, mTangent, mBinormal값이 정점버퍼에서 곧바로 가져온 값이므로 물체공간에 있다.
+최종 목적지는 접선공간인데 물체공간에서 한번에 접선공간으로 가는것은 힘드므로 우선 월드공간으로 변환해주어야한다.
+   float3 worldNormal = mul(Input.mNormal, (float3x3)gWorldMatrix);
+   Output.N = normalize(worldNormal);
+   
+   float3 worldTangent = mul(Input.mTangent, (float3x3)gWorldMatrix);
+   Output.T = normalize(worldTangent);
+   
+   float3 worldBinormal = mul(Input.mBinormal, (float3x3)gWorldMatrix);
+   Output.B = normalize(worldNormal);
+   
+   return Output;
+}
